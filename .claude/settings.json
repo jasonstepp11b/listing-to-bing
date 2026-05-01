@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node node_modules/.bin/tsc --noEmit)",
+      "Bash(npm test *)",
+      "Bash(xargs cat *)"
+    ]
+  }
+}
