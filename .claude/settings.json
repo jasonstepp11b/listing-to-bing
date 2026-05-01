@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s http://localhost:5173/src/App.tsx)",
+      "Bash(curl -s \"http://localhost:5173/src/lib/api.ts\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('strategy:', list\\(d.get\\('strategy',{}\\).keys\\(\\)\\)\\); print\\('keywords.buyer count:', len\\(d.get\\('keywords',{}\\).get\\('buyer',[]\\)\\)\\); print\\('keywords.seller count:', len\\(d.get\\('keywords',{}\\).get\\('seller',[]\\)\\)\\)\")"
+    ],
+    "additionalDirectories": [
+      "/Users/jason/code/listing-to-bing/src"
+    ]
+  }
+}
