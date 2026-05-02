@@ -18,7 +18,11 @@ It focuses entirely on **campaign generation + decision support**.
 
 ### Target user
 
-Real estate agents (beginner to intermediate marketers). Likely non-technical. Wants leads, not data. Little understanding of keyword strategy.
+- Real estate agents (beginner to intermediate marketers).
+- Likely non-technical.
+- Wants leads, not data.
+- Little understanding of keyword strategy.
+- MVP use case: agents trying to generate **buyer leads** for a specific listing. Seller-lead campaigns require a different input form (no listing exists yet) and are deferred to a future version.
 
 ---
 
@@ -55,7 +59,7 @@ If a feature, abstraction, or library doesn't directly serve the success criteri
 The MVP is successful if:
 
 1. A user can paste a listing.
-2. Receive a campaign in **< 10 seconds**.
+2. Receive a campaign in **< 30 seconds** (typical real-world range: 15–25s). Set user expectations honestly — under-promise, over-deliver.
 3. Understand what to do next.
 4. Feel confident running ads.
 
@@ -77,6 +81,7 @@ These are explicitly excluded from the MVP. Do not add them, even if convenient:
 - Keyword research tool
 - Full ads manager
 - Complex analytics platform
+- Seller-lead campaigns (deferred — needs its own input form built around the agent's service area and value proposition, not a property's attributes)
 
 ### Future roadmap (DO NOT BUILD YET)
 
@@ -87,6 +92,11 @@ Mentioned only so you don't accidentally architect against them:
 - Auto-generate negative keywords from real spend
 - Budget auto-optimization
 - Campaign performance tracking
+- User accounts and authentication
+- Property profiles — each property (e.g., "123 Maple Street") is a parent entity that can have multiple campaigns generated against it over time (initial launch, refresh after two weeks, price-drop campaign, post-open-house follow-up, etc.)
+- Campaign history per property — agents can see, compare, and re-export prior campaigns for the same listing
+- Multi-property dashboard — agents managing several active listings see all their properties at a glance
+- Seller-lead campaign form — a separate input flow capturing the agent's target area, value proposition, and service radius (since seller campaigns target homeowners *before* a listing exists)
 
 If you find yourself thinking "we should make this extensible for X" where X is in this list — stop. Build for today.
 
@@ -178,14 +188,41 @@ Keep the tree shallow. Don't pre-create folders for things we don't need yet.
 
 ---
 
+## 🎯 MVP Feature Set
+
+### 1. Input Form (Simple UI)
+
+User provides:
+- Listing description (textarea, required)
+- City / location (text input, required)
+- Price (number input, required, > 0)
+
+The MVP generates buyer-lead campaigns only. The form is purpose-built around an existing listing's attributes (description, city, price), which only makes sense when the agent has a property to advertise. Seller-lead campaigns require fundamentally different inputs (agent's target area, value proposition, service radius rather than a specific property) and are out of scope for the MVP.
+
+### 2. Output Sections (rendered in this exact order)
+
+1. **Strategy** — campaign type, target audience, budget, device, geo
+2. **Keywords** — buyer keyword set
+3. **Negative Keywords** — list + "why these matter" rationale
+4. **Ad Copy** — 5–10 headlines, 3–5 descriptions
+5. **Landing Page Copy** — headline, subheadline, CTA, bullets, trust elements
+6. **Wasted Spend Protection** — avoid-searches, budget warnings, common mistakes
+
+### 3. Export Options (MVP)
+
+- Copy-to-clipboard on every section.
+- "How to use this in Microsoft Ads" — plain numbered steps at the end.
+
+---
+
 ## 🎨 Frontend Conventions
 
 - **Single page.** No router needed. The whole app is one screen with two states: form → results.
-- **Loading state matters.** Show a clear "Generating your campaign..." state with realistic expectations (≤10s).
+- **Loading state matters.** Show a clear "Generating your campaign..." state with the message "This usually takes 15–30 seconds." Honest expectations beat optimistic ones — a user who's told 10s and waits 25s feels frustrated; a user who's told 30s and gets it in 18s feels delighted.
 - **Error state matters.** If the API fails, show a plain English message and a retry button. No stack traces.
 - **Render results in this exact order:**
   1. Strategy
-  2. Keywords (buyer + seller)
+  2. Keywords (buyer)
   3. Negative Keywords (with "why these matter")
   4. Ad Copy (headlines + descriptions)
   5. Landing Page Copy
@@ -211,13 +248,13 @@ Keep the tree shallow. Don't pre-create folders for things we don't need yet.
     listing: string;        // required, non-empty
     city: string;           // required, non-empty
     price: number;          // required, > 0
-    leadType: "buyer" | "seller";  // default "seller"
+    // leadType is omitted — MVP is buyer-only. Re-introduce when a seller form ships.
   }
   ```
 - **Response body**: the structured JSON contract below. Validate before returning.
 - **Secrets**: `ANTHROPIC_API_KEY` is read from Supabase env vars. Never log it. Never expose it to the client.
-- **CORS**: allow the Vercel frontend origin only.
-- **Timeout**: cap Claude call at ~25s. Return a clean error if exceeded.
+- **CORS**: allow the Vercel frontend origin only. Fail closed if `ALLOWED_ORIGIN` is unset.
+- **Timeout**: cap Claude call at 45s. Return a clean error if exceeded. (Real-world generations land in the 15–25s range; 45s gives headroom for occasional slow API responses without leaving users hanging indefinitely.)
 - **No caching** for MVP. Each request is a fresh generation.
 
 ---
@@ -253,17 +290,27 @@ Read the value once at function init, not per request.
 - Clear over clever.
 - Trust-driven, slightly conservative (older demographic).
 - No hype, no gimmicks, no emoji in ad copy.
+- **No hardcoded years or dates** in keywords, ad copy, or landing page copy unless the user explicitly provides one. Generated content with stale years (e.g., "Cleveland housing market 2024" appearing in 2026) makes the tool feel outdated and erodes user trust. The user-supplied price is fine to include; trainer-era years are not.
+
+### User prompt requirements
+
+The user prompt builder must:
+
+- Include the user's listing, city, and price.
+- Instruct Claude to return ONLY JSON matching the schema (no markdown, no prose).
+- Reinforce the "no hardcoded years or dates" constraint inline: *"Do not include specific years or dates in any generated content (keywords, headlines, descriptions, landing page copy) unless they are derived from the user's input. The user's price is acceptable to reference; do not invent years."*
+- Call out the static negative keyword baseline so they're guaranteed to appear.
 
 ### Structured output
 
-Ask Claude to return **only** JSON matching the schema below. Use the API's JSON-mode-style instructions in the user prompt and validate server-side with Zod. If parsing fails, retry once with a stricter reminder; if it fails again, return a clean error to the frontend.
+Ask Claude to return **only** JSON matching the schema below. Validate server-side with Zod. If parsing fails, retry once with a stricter reminder; if it fails again, return a clean error to the frontend.
 
 ### Response schema (authoritative)
 
 ```ts
 type CampaignResponse = {
   strategy: {
-    campaignType: "buyer" | "seller";
+    campaignType: "buyer";
     targetAudience: string;        // 1–2 sentences
     budgetRecommendation: string;  // human-readable, e.g. "$30–$50/day"
     deviceTargeting: string;       // e.g. "Desktop-heavy, ~70/30"
@@ -271,7 +318,6 @@ type CampaignResponse = {
   };
   keywords: {
     buyer: Keyword[];
-    seller: Keyword[];
   };
   negativeKeywords: {
     list: string[];
@@ -304,13 +350,13 @@ type Keyword = {
 
 ### Static negative keyword baseline
 
-Always merge this baseline into `negativeKeywords.list` (deduped):
+Always merge this baseline into `negativeKeywords.list` (deduped, case-insensitive):
 
 ```
 rent, apartment, jobs, cheap, craigslist, free
 ```
 
-The model should add more based on listing type and intent mismatch.
+The model should add more based on listing type and intent mismatch. The merge happens server-side after validation as a belt-and-suspenders guarantee.
 
 ---
 
@@ -324,8 +370,8 @@ The model should add more based on listing type and intent mismatch.
   2. Each section's copy button works.
   3. Submit with empty fields → friendly inline errors.
   4. Simulate API error → friendly retry UI.
-  5. Whole flow on a fresh listing completes in < 10s on a normal connection.
-  6. **After a model upgrade** (changing `ANTHROPIC_MODEL`): re-run steps 1–5, plus spot-check that the JSON still parses on the first try and that ad copy tone hasn't drifted (no hype, no emoji, trust-driven). If the model returns malformed JSON more than once in five runs, tighten the prompt before shipping.
+  5. Whole flow on a fresh listing completes in < 30s on a normal connection (15–25s is typical).
+  6. **After a model upgrade** (changing `ANTHROPIC_MODEL`): re-run steps 1–5, plus spot-check that the JSON still parses on the first try and that ad copy tone hasn't drifted (no hype, no emoji, trust-driven, no hardcoded years). If the model returns malformed JSON more than once in five runs, tighten the prompt before shipping.
 
 ---
 
@@ -333,8 +379,9 @@ The model should add more based on listing type and intent mismatch.
 
 - `ANTHROPIC_API_KEY` lives in Supabase env vars only.
 - `ANTHROPIC_MODEL` lives in Supabase env vars (default: `claude-sonnet-4-6`). See the Model section above.
+- `ALLOWED_ORIGIN` lives in Supabase env vars. Fail closed if unset.
 - The frontend never holds an API key.
-- `.env.example` lists all required env vars with placeholder values. Never commit real `.env`.
+- `.env.example` lists all required env vars with placeholder values. Never commit real `.env` or `.env.local`.
 - No PII is stored. The MVP is stateless.
 
 ---
