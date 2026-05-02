@@ -1,0 +1,2 @@
+[functions.generate-campaign]
+verify_jwt = false
