@@ -3,17 +3,22 @@ import { SYSTEM_PROMPT, buildUserPrompt } from './prompt.ts'
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL')
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN')
+const ALLOWED_ORIGIN_RAW = Deno.env.get('ALLOWED_ORIGIN')
+const ALLOWED_ORIGINS = (ALLOWED_ORIGIN_RAW ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
 
 if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set')
 if (!ANTHROPIC_MODEL) throw new Error('ANTHROPIC_MODEL is not set')
-if (!ALLOWED_ORIGIN) throw new Error('ALLOWED_ORIGIN is not set')
+if (ALLOWED_ORIGINS.length === 0) throw new Error('ALLOWED_ORIGIN is not set')
 
-function corsHeaders() {
+function corsHeaders(origin: string) {
   return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGIN!,
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
   }
 }
 
@@ -57,7 +62,8 @@ function mergeNegativeKeywords(list: string[]): string[] {
 
 Deno.serve(async (req) => {
   const requestOrigin = req.headers.get('origin') ?? ''
-  const headers = corsHeaders()
+  const isAllowed = ALLOWED_ORIGINS.includes(requestOrigin)
+  const headers = corsHeaders(isAllowed ? requestOrigin : '')
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers })
@@ -67,7 +73,7 @@ Deno.serve(async (req) => {
     return new Response('Method not allowed', { status: 405, headers })
   }
 
-  if (requestOrigin !== ALLOWED_ORIGIN) {
+  if (!isAllowed) {
     return new Response('Forbidden', { status: 403 })
   }
 
