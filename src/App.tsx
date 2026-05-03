@@ -3,6 +3,7 @@ import type { CampaignResponse, GenerateRequest } from './lib/types'
 import { generateCampaign } from './lib/api'
 import { ListingForm } from './components/ListingForm'
 import { CampaignOutput } from './components/CampaignOutput'
+import { LandingHero } from './components/LandingHero'
 
 type AppState = 'form' | 'loading' | 'results' | 'error'
 
@@ -84,6 +85,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <LandingHero />
       <ListingForm onSubmit={handleSubmit} />
     </div>
   )
