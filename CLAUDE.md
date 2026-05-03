@@ -383,6 +383,8 @@ The model should add more based on listing type and intent mismatch. The merge h
 - The frontend never holds an API key.
 - `.env.example` lists all required env vars with placeholder values. Never commit real `.env` or `.env.local`.
 - No PII is stored. The MVP is stateless.
+- `ALLOWED_ORIGIN` is a comma-separated list. The function code splits on commas, trims, and echoes back the matched origin in the response header (not the raw env value). Multiple environments (localhost, Vercel preview, Vercel prod) can coexist in one var.
+- JWT verification is disabled for `generate-campaign` via `supabase/config.toml` (`verify_jwt = false`). This file MUST be tracked in git — losing it re-enables auth and breaks all unauthenticated calls.
 
 ---
 
