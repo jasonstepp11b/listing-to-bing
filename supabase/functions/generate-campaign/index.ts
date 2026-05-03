@@ -89,7 +89,8 @@ Deno.serve(async (req) => {
 
   const parsed = RequestSchema.safeParse(body)
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: parsed.error.flatten() }), {
+    const firstMessage = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? 'Invalid request.'
+    return new Response(JSON.stringify({ error: firstMessage }), {
       status: 400,
       headers: { ...headers, 'Content-Type': 'application/json' },
     })

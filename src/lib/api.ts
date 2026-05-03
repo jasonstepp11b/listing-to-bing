@@ -8,8 +8,15 @@ export async function generateCampaign(data: GenerateRequest): Promise<CampaignR
     body: JSON.stringify(data),
   })
   if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `Request failed (${response.status})`)
+    let message = `Request failed (${response.status})`
+    try {
+      const data = await response.json() as { error?: unknown }
+      if (typeof data.error === 'string') message = data.error
+    } catch {
+      const text = await response.text().catch(() => '')
+      if (text) message = text
+    }
+    throw new Error(message)
   }
   // Safe cast: edge function validates schema with Zod before returning
   return response.json() as Promise<CampaignResponse>

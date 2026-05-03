@@ -1,9 +1,18 @@
 import { z } from 'npm:zod'
 
+// Must stay in sync with src/lib/types.ts
+const LISTING_MAX_LENGTH = 5000
+const PRICE_HARD_MIN = 10_000
+const PRICE_HARD_MAX = 50_000_000
+
 export const RequestSchema = z.object({
-  listing: z.string().min(1, 'listing is required'),
-  city: z.string().min(1, 'city is required'),
-  price: z.number().positive('price must be greater than 0'),
+  listing: z.string()
+    .min(1, 'Please enter the property listing.')
+    .max(LISTING_MAX_LENGTH, `Listing must be ${LISTING_MAX_LENGTH} characters or fewer.`),
+  city: z.string().min(1, 'Please enter a city.'),
+  price: z.number()
+    .min(PRICE_HARD_MIN, 'Please enter a realistic price.')
+    .max(PRICE_HARD_MAX, 'Please enter a realistic price.'),
 })
 
 export type GenerateRequest = z.infer<typeof RequestSchema>
